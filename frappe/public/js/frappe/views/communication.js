@@ -48,8 +48,14 @@ frappe.views.CommunicationComposer = Class.extend({
 
 	get_fields: function() {
 		var fields= [
+			{label:__("Send As eBay M2M"), fieldtype:"Check",
+				fieldname:"send_ebay_m2m"},
+			{label:__("Ebay Account"), fieldtype:"Select",options: ["ebay", "ebaytwo"],
+				fieldname:"ebay_account"},
+			{label:__("Ebay ItemID"), fieldtype:"Data",
+				fieldname:"ebay_item_id"},
 			{label:__("To"), fieldtype:"Data", reqd: 0, fieldname:"recipients",length:524288},
-			{fieldtype: "Section Break", collapsible: 1, label: "CC & Standard Reply"},
+			{fieldtype: "Section Break", collapsible: 1, label: "CC & Standard Reply",fieldname:"cc_standard_reply"},
 			{label:__("CC"), fieldtype:"Data", fieldname:"cc",length:524288},
 			{label:__("Standard Reply"), fieldtype:"Link", options:"Standard Reply",
 				fieldname:"standard_reply"},
@@ -57,6 +63,8 @@ frappe.views.CommunicationComposer = Class.extend({
 			{label:__("Subject"), fieldtype:"Data", reqd: 1,
 				fieldname:"subject",length:524288},
 			{fieldtype: "Section Break"},
+			{label:__("Use Template"), fieldtype:"Check", reqd: 0,
+				fieldname:"use_template"},
 			{label:__("Message"), fieldtype:"Text Editor", reqd: 1,
 				fieldname:"content"},
 			{fieldtype: "Section Break"},
@@ -104,6 +112,7 @@ frappe.views.CommunicationComposer = Class.extend({
 		this.setup_print();
 		this.setup_attach();
 		this.setup_email();
+		this.setup_ebay_m2m();
 		this.setup_awesomplete();
 		this.setup_last_edited_communication();
 		this.setup_standard_reply();
@@ -387,36 +396,184 @@ frappe.views.CommunicationComposer = Class.extend({
 		// select print format
 		$(fields.communication_medium.wrapper).toggle(false);
 		$(fields.sent_or_received.wrapper).toggle(false);
-
 	},
-
+	get_ebay_template: function(){
+		var me = this;
+		var testmsg = "";
+		if(me.frm.doctype=='Sales Order'){
+			testmsg = "Sales Order";
+		}else if(me.frm.doctype=='Delivery Note'){
+			testmsg = "Delivery Note";
+		}
+		return testmsg;
+	},
+	setup_ebay_m2m: function(){
+		var me = this;
+		var fields = this.dialog.fields_dict;
+		// toggle eBay M2M
+		$(fields.use_template.wrapper).toggle(false);
+		$(fields.ebay_account.wrapper).toggle(false);
+		$(fields.ebay_item_id.wrapper).toggle(false);
+		$(fields.use_template.input).click(function() {
+			var message_body = me.get_ebay_template();
+			fields.content.set_input(message_body);
+		});
+		$(fields.send_ebay_m2m.input).click(function() {
+			$(fields.use_template.wrapper).toggle($(this).prop("checked"));
+			$(fields.ebay_account.wrapper).toggle($(this).prop("checked"));
+			$(fields.ebay_item_id.wrapper).toggle($(this).prop("checked"));
+			$(fields.cc.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.standard_reply.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.cc_standard_reply.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.send_email.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.send_me_a_copy.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.send_read_receipt.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.communication_medium.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.sent_or_received.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.attach_document_print.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.select_print_format.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.language_sel.wrapper).toggle(!$(this).prop("checked"));
+			$(fields.select_attachments.wrapper).toggle(!$(this).prop("checked"));
+			if($(fields.send_ebay_m2m.input).prop("checked")){
+				var buyer_details = me.get_ebay_buyer_id(me.frm.doctype);
+				if(buyer_details.buyer_id==""){
+					msgprint(__("eBay buyer ID not found."));
+					$(fields.send_ebay_m2m.input).prop("checked",false);
+					$(fields.use_template.wrapper).toggle($(this).prop("checked"));
+					$(fields.ebay_account.wrapper).toggle($(this).prop("checked"));
+					$(fields.ebay_item_id.wrapper).toggle($(this).prop("checked"));
+					$(fields.cc.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.standard_reply.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.cc_standard_reply.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.send_email.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.send_me_a_copy.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.send_read_receipt.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.communication_medium.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.sent_or_received.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.attach_document_print.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.select_print_format.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.language_sel.wrapper).toggle(!$(this).prop("checked"));
+					$(fields.select_attachments.wrapper).toggle(!$(this).prop("checked"));
+					return
+				}
+				$(fields.recipients.input).val(buyer_details.buyer_id);
+				if(buyer_details.column==""){
+					$(fields.send_ebay_m2m.input).prop("checked",false);
+					// $(fields.send_ebay_m2m.input).val('0');
+				}else{
+					
+					var ebay_account = buyer_details.column=="ebay_buyer_id"?"ebay":"ebaytwo";
+					$(fields.ebay_account.input).val(ebay_account);
+					$(fields.ebay_item_id.input).val(buyer_details.ebay_item_id);
+				}
+			}else{
+				$(fields.recipients.input).val(me.recipients);
+				$(fields.communication_medium.wrapper).toggle(!$(fields.send_email.input).prop("checked"));
+				$(fields.sent_or_received.wrapper).toggle(!$(fields.send_email.input).prop("checked"));
+			}
+		});
+		$(fields.cc.wrapper).toggle(true);
+		$(fields.standard_reply.wrapper).toggle(true);
+		$(fields.cc_standard_reply.wrapper).toggle(true);
+		$(fields.send_email.wrapper).toggle(true);
+		$(fields.send_me_a_copy.wrapper).toggle(true);
+		$(fields.send_read_receipt.wrapper).toggle(true);
+		$(fields.communication_medium.wrapper).toggle(false);
+		$(fields.sent_or_received.wrapper).toggle(false);
+		$(fields.attach_document_print.wrapper).toggle(true);
+		$(fields.select_print_format.wrapper).toggle(true);
+		$(fields.language_sel.wrapper).toggle(true);
+		$(fields.select_attachments.wrapper).toggle(true);
+	},
+	get_ebay_buyer_id: function(doctype){
+		var me = this;
+		var buyer_details = {"buyer_id":"","column":"","ebay_item_id":""};
+		buyer_id = "";
+		column = "";
+		ebay_item_id = "";
+		switch(doctype){
+			case 'Sales Order':
+				var response = frappe.call({
+					method:"erpnext.utilities.ebay_utils.get_ebay_m2m_details_for_so",
+					args: {
+						sales_order: me.frm.doc,
+					},
+					async:false,
+					callback: function(r) {
+						console.log(r)
+					}
+				})
+				return response.responseJSON.message
+			break;
+			case 'Delivery Note':
+				var response = frappe.call({
+					method:"erpnext.stock.doctype.delivery_note.delivery_note.get_ebay_buyer_id_from_dn",
+					args: {
+						delivery_note_item: me.frm.doc.items[0].name,
+					},
+					async:false,
+					callback: function(r) {
+						console.log(r)
+					}
+				})
+				return response.responseJSON.message
+			break;
+			default:
+				return buyer_details;
+		}
+	},
 	send_action: function() {
 		var me = this;
+		var fields = this.dialog.fields_dict;
 		var btn = me.dialog.get_primary_btn();
 
 		var form_values = this.get_values();
-		if(!form_values) return;
-
-		var selected_attachments = $.map($(me.dialog.wrapper)
-			.find("[data-file-name]:checked"), function(element) {
-				return $(element).attr("data-file-name");
-			})
-
-		if(form_values.attach_document_print) {
-			if (cur_frm.print_preview.is_old_style(form_values.select_print_format || "")) {
-				cur_frm.print_preview.with_old_style({
-					format: form_values.select_print_format,
-					callback: function(print_html) {
-						me.send_email(btn, form_values, selected_attachments, print_html);
-					}
-				});
-			} else {
-				me.send_email(btn, form_values, selected_attachments, null, form_values.select_print_format || "");
+		if(form_values.send_ebay_m2m){
+			if($(fields.ebay_account.input).val()=='ebay'){
+				method_name = "erpnext_ebay.utils.send_ebay_m2m_message"
+			}else{
+				method_name = "erpnexttwo_ebay.utils.send_ebaytwo_m2m_message"
 			}
+			return frappe.call({
+				method:method_name,
+				args: {
+					itemid:form_values.ebay_item_id,
+					subject:form_values.subject,
+					message_body_code:"",
+					recipient: form_values.recipients,
+					message_body:form_values.content
+				},
+				btn: btn,
+				callback: function(r) {
+					alert('ebay message sent')
+				}
+			});
+			return
+		}else{
+			if(!form_values) return;
 
-		} else {
-			me.send_email(btn, form_values, selected_attachments);
+			var selected_attachments = $.map($(me.dialog.wrapper)
+				.find("[data-file-name]:checked"), function(element) {
+					return $(element).attr("data-file-name");
+				})
+
+			if(form_values.attach_document_print) {
+				if (cur_frm.print_preview.is_old_style(form_values.select_print_format || "")) {
+					cur_frm.print_preview.with_old_style({
+						format: form_values.select_print_format,
+						callback: function(print_html) {
+							me.send_email(btn, form_values, selected_attachments, print_html);
+						}
+					});
+				} else {
+					me.send_email(btn, form_values, selected_attachments, null, form_values.select_print_format || "");
+				}
+
+			} else {
+				me.send_email(btn, form_values, selected_attachments);
+			}
 		}
+		
 	},
 
 	get_values: function() {
