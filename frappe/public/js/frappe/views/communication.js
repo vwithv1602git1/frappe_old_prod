@@ -503,7 +503,7 @@ frappe.views.CommunicationComposer = Class.extend({
 				.find("[data-file-name]:checked"), function(element) {
 					return $(element).attr("data-file-name");
 				})
-			return frappe.call({
+			frappe.call({
 				method:method_name,
 				args: {
 					itemid:form_values.ebay_item_id,
